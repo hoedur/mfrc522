@@ -341,17 +341,17 @@ uint8_t mfrc522_get_addr_pin(mfrc522_handle_t *handle, uint8_t *addr_pin)
  *            - 2 handle is NULL
  *            - 3 linked functions is NULL
  *            - 4 interface is invalid
- *            - 5 get id failed
- *            - 6 check id failed
+ *            - 5 get version register failed
+ *            - 6 check version register failed
  * @note      none
  */
 uint8_t mfrc522_init(mfrc522_handle_t *handle)
 {
     uint8_t res;
-    uint8_t prev;
-    uint8_t id;
+    uint8_t command_reg;
+    uint8_t version_reg;
     uint32_t timeout;
-    
+
     if (handle == NULL)                                                      /* check handle */
     {
         return 2;                                                            /* return error */
@@ -363,116 +363,116 @@ uint8_t mfrc522_init(mfrc522_handle_t *handle)
     if (handle->reset_gpio_init == NULL)                                     /* check reset_gpio_init */
     {
         handle->debug_print("mfrc522: reset_gpio_init is null.\n");          /* reset_gpio_init is null */
-        
+
         return 3;                                                            /* return error */
     }
     if (handle->reset_gpio_deinit == NULL)                                   /* check reset_gpio_deinit */
     {
         handle->debug_print("mfrc522: reset_gpio_deinit is null.\n");        /* reset_gpio_deinit is null */
-        
+
         return 3;                                                            /* return error */
     }
     if (handle->reset_gpio_write == NULL)                                    /* check reset_gpio_write */
     {
         handle->debug_print("mfrc522: reset_gpio_write is null.\n");         /* reset_gpio_write is null */
-        
+
         return 3;                                                            /* return error */
     }
     if (handle->iic_init == NULL)                                            /* check iic_init */
     {
         handle->debug_print("mfrc522: iic_init is null.\n");                 /* iic_init is null */
-        
+
         return 3;                                                            /* return error */
     }
     if (handle->iic_deinit == NULL)                                          /* check iic_deinit */
     {
         handle->debug_print("mfrc522: iic_deinit is null.\n");               /* iic_deinit is null */
-        
+
         return 3;                                                            /* return error */
     }
     if (handle->iic_read == NULL)                                            /* check iic_read */
     {
         handle->debug_print("mfrc522: iic_read is null.\n");                 /* iic_read is null */
-        
+
         return 3;                                                            /* return error */
     }
     if (handle->iic_write == NULL)                                           /* check iic_write */
     {
         handle->debug_print("mfrc522: iic_write is null.\n");                /* iic_write is null */
-        
+
         return 3;                                                            /* return error */
     }
     if (handle->uart_init == NULL)                                           /* check uart_init */
     {
         handle->debug_print("mfrc522: uart_init is null.\n");                /* uart_init is null */
-        
+
         return 3;                                                            /* return error */
     }
     if (handle->uart_deinit == NULL)                                         /* check uart_deinit */
     {
         handle->debug_print("mfrc522: uart_deinit is null.\n");              /* uart_deinit is null */
-        
+
         return 3;                                                            /* return error */
     }
     if (handle->uart_read == NULL)                                           /* check uart_read */
     {
         handle->debug_print("mfrc522: uart_read is null.\n");                /* uart_read is null */
-        
+
         return 3;                                                            /* return error */
     }
     if (handle->uart_write == NULL)                                          /* check uart_write */
     {
         handle->debug_print("mfrc522: uart_write is null.\n");               /* uart_write is null */
-        
+
         return 3;                                                            /* return error */
     }
     if (handle->uart_flush == NULL)                                          /* check uart_flush */
     {
         handle->debug_print("mfrc522: uart_flush is null.\n");               /* uart_flush is null */
-        
+
         return 3;                                                            /* return error */
     }
     if (handle->spi_init == NULL)                                            /* check spi_init */
     {
         handle->debug_print("mfrc522: spi_init is null.\n");                 /* spi_init is null */
-        
+
         return 3;                                                            /* return error */
     }
     if (handle->spi_deinit == NULL)                                          /* check spi_deinit */
     {
         handle->debug_print("mfrc522: spi_deinit is null.\n");               /* spi_deinit is null */
-        
+
         return 3;                                                            /* return error */
     }
     if (handle->spi_read == NULL)                                            /* check spi_read */
     {
         handle->debug_print("mfrc522: spi_read is null.\n");                 /* spi_read is null */
-        
+
         return 3;                                                            /* return error */
     }
     if (handle->spi_write == NULL)                                           /* check spi_write */
     {
         handle->debug_print("mfrc522: spi_write is null.\n");                /* spi_read_spi_write is null */
-        
+
         return 3;                                                            /* return error */
     }
     if (handle->delay_ms == NULL)                                            /* check delay_ms */
     {
         handle->debug_print("mfrc522: delay_ms is null.\n");                 /* delay_ms is null */
-        
+
         return 3;                                                            /* return error */
     }
     if (handle->receive_callback == NULL)                                    /* check receive_callback */
     {
         handle->debug_print("mfrc522: receive_callback is null.\n");         /* receive_callback is null */
-        
+
         return 3;                                                            /* return error */
     }
-    
+
     if (handle->reset_gpio_init() != 0)                                      /* reset gpio init */
     {
         handle->debug_print("mfrc522: reset gpio init failed.\n");           /* reset gpio init failed */
-        
+
         return 1;                                                            /* return error */
     }
     if (handle->iic_spi_uart == MFRC522_INTERFACE_IIC)                       /* if iic interface */
@@ -481,7 +481,7 @@ uint8_t mfrc522_init(mfrc522_handle_t *handle)
         {
             handle->debug_print("mfrc522: iic init failed.\n");              /* iic init failed */
             (void)handle->reset_gpio_deinit();                               /* reset gpio deinit */
-            
+
             return 1;                                                        /* return error */
         }
     }
@@ -491,7 +491,7 @@ uint8_t mfrc522_init(mfrc522_handle_t *handle)
         {
             handle->debug_print("mfrc522: spi init failed.\n");              /* spi init failed */
             (void)handle->reset_gpio_deinit();                               /* reset gpio deinit */
-            
+
             return 1;                                                        /* return error */
         }
     }
@@ -501,14 +501,14 @@ uint8_t mfrc522_init(mfrc522_handle_t *handle)
         {
             handle->debug_print("mfrc522: uart init failed.\n");             /* uart init failed */
             (void)handle->reset_gpio_deinit();                               /* reset gpio deinit */
-            
+
             return 1;                                                        /* return error */
         }
     }
     else
     {
         handle->debug_print("mfrc522: interface is invalid.\n");             /* interface is invalid */
-        
+
         return 4;                                                            /* return error */
     }
 
@@ -516,7 +516,7 @@ uint8_t mfrc522_init(mfrc522_handle_t *handle)
     {
         handle->debug_print("mfrc522: reset gpio write failed.\n");          /* reset gpio write failed */
         res = 1;                                                             /* set the exit code */
-        
+
         goto exit_code;                                                      /* goto the exit code */
     }
     handle->delay_ms(10);                                                    /* delay 10 ms */
@@ -524,43 +524,43 @@ uint8_t mfrc522_init(mfrc522_handle_t *handle)
     {
         handle->debug_print("mfrc522: reset gpio write failed.\n");          /* reset gpio write failed */
         res = 1;                                                             /* set the exit code */
-        
+
         goto exit_code;                                                      /* goto the exit code */
     }
 
-    res = a_mfrc522_read(handle, MFRC522_REG_COMMAND, &prev, 1);             /* read config */
+    res = a_mfrc522_read(handle, MFRC522_REG_COMMAND, &command_reg, 1);      /* read config */
     if (res != 0)                                                            /* check the result */
     {
         handle->debug_print("mfrc522: read command failed.\n");              /* read command failed */
         res = 1;                                                             /* set the exit code */
-        
+
         goto exit_code;                                                      /* goto the exit code */
     }
-    prev &= ~(0xF << 0);                                                     /* clear the settings */
-    prev |= MFRC522_COMMAND_SOFT_RESET;                                      /* set the idle */
-    res = a_mfrc522_write(handle, MFRC522_REG_COMMAND, &prev, 1);            /* write config */
+    command_reg &= ~(0xF << 0);                                              /* clear the settings */
+    command_reg |= MFRC522_COMMAND_SOFT_RESET;                               /* set the idle */
+    res = a_mfrc522_write(handle, MFRC522_REG_COMMAND, &command_reg, 1);     /* write config */
     if (res != 0)                                                            /* check the result */
     {
         handle->debug_print("mfrc522: soft reset failed.\n");                /* write command failed */
         res = 1;                                                             /* set the exit code */
-        
+
         goto exit_code;                                                      /* goto the exit code */
     }
     handle->delay_ms(1);                                                     /* delay 1 ms */
     timeout = 1000;                                                          /* set 1000 ms */
     while (timeout != 0)                                                     /* check the timeout */
     {
-        res = a_mfrc522_read(handle, MFRC522_REG_COMMAND, &prev, 1);         /* read config */
+        res = a_mfrc522_read(handle, MFRC522_REG_COMMAND, &command_reg, 1);  /* read config */
         if (res != 0)                                                        /* check the result */
         {
             handle->debug_print("mfrc522: read command failed.\n");          /* read command failed */
             res = 1;                                                         /* set the exit code */
-            
+
             goto exit_code;                                                  /* goto the exit code */
         }
         timeout--;                                                           /* timeout-- */
         handle->delay_ms(1);                                                 /* delay 1 ms */
-        if ((prev & (1 << 4)) == 0)                                          /* check the power on bit */
+        if ((command_reg & (1 << 4)) == 0)                                   /* check the power on bit */
         {
             break;                                                           /* break */
         }
@@ -568,26 +568,26 @@ uint8_t mfrc522_init(mfrc522_handle_t *handle)
         {
             handle->debug_print("mfrc522: read timeout.\n");                 /* read timeout */
             res = 1;                                                         /* set the exit code */
-            
+
             goto exit_code;                                                  /* goto the exit code */
         }
     }
 
-    if (a_mfrc522_read(handle, MFRC522_REG_VERSION, &id, 1) != 0)            /* get the id */
+    if (a_mfrc522_read(handle, MFRC522_REG_VERSION, &version_reg, 1) != 0)   /* get the version register */
     {
-        handle->debug_print("mfrc522: get id failed.\n");                    /* get id failed */
+        handle->debug_print("mfrc522: get version register failed.\n");      /* get version register failed */
         res = 5;                                                             /* set the exit code */
-        
+
         goto exit_code;                                                      /* goto the exit code */
     }
-    if (((id >> 4) & 0xF) != 9)                                              /* check the id */
+    if (((version_reg >> 4) & 0xF) != 9)                                     /* check the version register */
     {
-        handle->debug_print("mfrc522: check id failed.\n");                  /* check id failed */
+        handle->debug_print("mfrc522: check version register failed.\n");    /* check version register failed */
         res = 6;                                                             /* set the exit code */
-        
+
         goto exit_code;                                                      /* goto the exit code */
     }
-    
+
     uint8_t zero = 0;
     uint8_t clear_comirq_retval = a_mfrc522_write(handle, MFRC522_REG_COMIRQ, &zero, sizeof(zero));
     if (clear_comirq_retval != 0) {
@@ -599,11 +599,11 @@ uint8_t mfrc522_init(mfrc522_handle_t *handle)
 
     handle->inited = 1;                                                      /* flag inited */
     handle->irq_flag = 0x0000;                                               /* set 0x0000 */
-    
+
     return 0;                                                                /* success return 0 */
-    
+
     exit_code:
-    
+
     if (handle->iic_spi_uart == MFRC522_INTERFACE_IIC)                       /* if iic interface */
     {
         (void)handle->iic_deinit();                                          /* iic deinit */
@@ -617,7 +617,7 @@ uint8_t mfrc522_init(mfrc522_handle_t *handle)
         (void)handle->uart_deinit();                                         /* uart deinit */
     }
     (void)handle->reset_gpio_deinit();                                       /* reset gpio deinit */
-    
+
     return res;                                                              /* return error */
 }
 
