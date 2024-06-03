@@ -541,7 +541,7 @@ uint8_t mfrc522_init(mfrc522_handle_t *handle)
     res = a_mfrc522_write(handle, MFRC522_REG_COMMAND, &prev, 1);            /* write config */
     if (res != 0)                                                            /* check the result */
     {
-        handle->debug_print("mfrc522: write command failed.\n");             /* write command failed */
+        handle->debug_print("mfrc522: soft reset failed.\n");                /* write command failed */
         res = 1;                                                             /* set the exit code */
         
         goto exit_code;                                                      /* goto the exit code */
@@ -588,6 +588,15 @@ uint8_t mfrc522_init(mfrc522_handle_t *handle)
         goto exit_code;                                                      /* goto the exit code */
     }
     
+    uint8_t zero = 0;
+    uint8_t clear_comirq_retval = a_mfrc522_write(handle, MFRC522_REG_COMIRQ, &zero, sizeof(zero));
+    if (clear_comirq_retval != 0) {
+        handle->debug_print("mfrc522: clearing COMIRQ failed: %d\n", clear_comirq_retval);
+        res = 1;
+
+        goto exit_code;
+    }
+
     handle->inited = 1;                                                      /* flag inited */
     handle->irq_flag = 0x0000;                                               /* set 0x0000 */
     
@@ -719,9 +728,9 @@ uint8_t mfrc522_deinit(mfrc522_handle_t *handle)
 uint8_t mfrc522_irq_handler(mfrc522_handle_t *handle)
 {
     uint8_t res;
-    uint8_t prev;
-    uint8_t prev1;
-    uint8_t prev2;
+    uint8_t status1_reg;
+    uint8_t comirq_reg;
+    uint8_t divirq_reg;
     
     if (handle == NULL)                                                      /* check handle */
     {
@@ -736,52 +745,54 @@ uint8_t mfrc522_irq_handler(mfrc522_handle_t *handle)
     {
         handle->delay_ms(2);                                                 /* for uart interface delay 2 ms */
     }
-    res = a_mfrc522_read(handle, MFRC522_REG_STATUS1, &prev, 1);             /* read status1 */
+    res = a_mfrc522_read(handle, MFRC522_REG_STATUS1, &status1_reg, 1);      /* read status1 */
     if (res != 0)                                                            /* check the result */
     {
         return 1;                                                            /* return error */
     }
-    res = a_mfrc522_read(handle, MFRC522_REG_COMIRQ, &prev1, 1);             /* read comirq */
+    res = a_mfrc522_read(handle, MFRC522_REG_COMIRQ, &comirq_reg, 1);        /* read comirq */
     if (res != 0)                                                            /* check the result */
     {
         handle->debug_print("mfrc522: read comirq failed.\n");               /* read comirq failed */
         
         return 1;                                                            /* return error */
     }
-    res = a_mfrc522_read(handle, MFRC522_REG_DIVIRQ, &prev2, 1);             /* read divirq */
+    res = a_mfrc522_read(handle, MFRC522_REG_DIVIRQ, &divirq_reg, 1);        /* read divirq */
     if (res != 0)                                                            /* check the result */
     {
         handle->debug_print("mfrc522: read divirq failed.\n");               /* read divirq failed */
         
         return 1;                                                            /* return error */
     }
+
+    handle->debug_print("%s - status1_reg=0x%x comirq_reg=0x%x divirq_reg=0x%x\n", __FUNCTION__, status1_reg, comirq_reg, divirq_reg);
     
-    if ((prev & (1 << 4)) != 0)                                              /* if set */
+    if ((status1_reg & (1 << 4)) != 0)                                       /* if set */
     {
-        res = a_mfrc522_read(handle, MFRC522_REG_COMIRQ, &prev, 1);          /* read config */
+        res = a_mfrc522_read(handle, MFRC522_REG_COMIRQ, &status1_reg, 1);   /* read config */
         if (res != 0)                                                        /* check the result */
         {
             handle->debug_print("mfrc522: read comirq failed.\n");           /* read comirq failed */
             
             return 1;                                                        /* return error */
         }
-        prev &= ~(1 << 7);                                                   /* clear the settings */
-        res = a_mfrc522_write(handle, MFRC522_REG_COMIRQ, &prev, 1);         /* write config */
+        status1_reg &= ~(1 << 7);                                            /* clear the settings */
+        res = a_mfrc522_write(handle, MFRC522_REG_COMIRQ, &status1_reg, 1);  /* write config */
         if (res != 0)                                                        /* check the result */
         {
             handle->debug_print("mfrc522: write comirq failed.\n");          /* write comirq failed */
             
             return 1;                                                        /* return error */
         }
-        res = a_mfrc522_read(handle, MFRC522_REG_DIVIRQ, &prev, 1);          /* read config */
+        res = a_mfrc522_read(handle, MFRC522_REG_DIVIRQ, &status1_reg, 1);   /* read config */
         if (res != 0)                                                        /* check the result */
         {
             handle->debug_print("mfrc522: read divirq failed.\n");           /* read divirq failed */
             
             return 1;                                                        /* return error */
         }
-        prev &= ~(1 << 7);                                                   /* clear the settings */
-        res = a_mfrc522_write(handle, MFRC522_REG_DIVIRQ, &prev, 1);         /* write config */
+        status1_reg &= ~(1 << 7);                                            /* clear the settings */
+        res = a_mfrc522_write(handle, MFRC522_REG_DIVIRQ, &status1_reg, 1);  /* write config */
         if (res != 0)                                                        /* check the result */
         {
             handle->debug_print("mfrc522: write divirq failed.\n");          /* write divirq failed */
@@ -789,7 +800,7 @@ uint8_t mfrc522_irq_handler(mfrc522_handle_t *handle)
             return 1;                                                        /* return error */
         }
         
-        if ((prev1 & (1 << MFRC522_INTERRUPT_TIMER)) != 0)                   /* timer */
+        if ((comirq_reg & (1 << MFRC522_INTERRUPT_TIMER)) != 0)              /* timer */
         {
             handle->irq_flag |= 1 << MFRC522_INTERRUPT_TIMER;                /* set the irq flag */
             if (handle->receive_callback != NULL)                            /* if receive callback */
@@ -797,7 +808,7 @@ uint8_t mfrc522_irq_handler(mfrc522_handle_t *handle)
                 handle->receive_callback(MFRC522_INTERRUPT_TIMER);           /* run callback */
             }
         }
-        if ((prev1 & (1 << MFRC522_INTERRUPT_ERR)) != 0)                     /* err */
+        if ((comirq_reg & (1 << MFRC522_INTERRUPT_ERR)) != 0)                /* err */
         {
             handle->irq_flag |= 1 << MFRC522_INTERRUPT_ERR;                  /* set the irq flag */
             if (handle->receive_callback != NULL)                            /* if receive callback */
@@ -805,7 +816,7 @@ uint8_t mfrc522_irq_handler(mfrc522_handle_t *handle)
                 handle->receive_callback(MFRC522_INTERRUPT_ERR);             /* run callback */
             }
         }
-        if ((prev1 & (1 << MFRC522_INTERRUPT_LO_ALERT)) != 0)                /* lo alert */
+        if ((comirq_reg & (1 << MFRC522_INTERRUPT_LO_ALERT)) != 0)           /* lo alert */
         {
             handle->irq_flag |= 1 << MFRC522_INTERRUPT_LO_ALERT;             /* set the irq flag */
             if (handle->receive_callback != NULL)                            /* if receive callback */
@@ -813,7 +824,7 @@ uint8_t mfrc522_irq_handler(mfrc522_handle_t *handle)
                 handle->receive_callback(MFRC522_INTERRUPT_LO_ALERT);        /* run callback */
             }
         }
-        if ((prev1 & (1 << MFRC522_INTERRUPT_HI_ALERT)) != 0)                /* hi alert */
+        if ((comirq_reg & (1 << MFRC522_INTERRUPT_HI_ALERT)) != 0)           /* hi alert */
         {
             handle->irq_flag |= 1 << MFRC522_INTERRUPT_HI_ALERT;             /* set the irq flag */
             if (handle->receive_callback != NULL)                            /* if receive callback */
@@ -821,7 +832,7 @@ uint8_t mfrc522_irq_handler(mfrc522_handle_t *handle)
                 handle->receive_callback(MFRC522_INTERRUPT_HI_ALERT);        /* run callback */
             }
         }
-        if ((prev1 & (1 << MFRC522_INTERRUPT_IDLE)) != 0)                    /* idle */
+        if ((comirq_reg & (1 << MFRC522_INTERRUPT_IDLE)) != 0)               /* idle */
         {
             handle->irq_flag |= 1 << MFRC522_INTERRUPT_IDLE;                 /* set the irq flag */
             if (handle->receive_callback != NULL)                            /* if receive callback */
@@ -829,7 +840,7 @@ uint8_t mfrc522_irq_handler(mfrc522_handle_t *handle)
                 handle->receive_callback(MFRC522_INTERRUPT_IDLE);            /* run callback */
             }
         }
-        if ((prev1 & (1 << MFRC522_INTERRUPT_RX)) != 0)                      /* rx */
+        if ((comirq_reg & (1 << MFRC522_INTERRUPT_RX)) != 0)                 /* rx */
         {
             handle->irq_flag |= 1 << MFRC522_INTERRUPT_RX;                   /* set the irq flag */
             if (handle->receive_callback != NULL)                            /* if receive callback */
@@ -837,7 +848,7 @@ uint8_t mfrc522_irq_handler(mfrc522_handle_t *handle)
                 handle->receive_callback(MFRC522_INTERRUPT_RX);              /* run callback */
             }
         }
-        if ((prev1 & (1 << MFRC522_INTERRUPT_TX)) != 0)                      /* tx */
+        if ((comirq_reg & (1 << MFRC522_INTERRUPT_TX)) != 0)                 /* tx */
         {
             handle->irq_flag |= 1 << MFRC522_INTERRUPT_TX;                   /* set the irq flag */
             if (handle->receive_callback != NULL)                            /* if receive callback */
@@ -845,7 +856,7 @@ uint8_t mfrc522_irq_handler(mfrc522_handle_t *handle)
                 handle->receive_callback(MFRC522_INTERRUPT_TX);              /* run callback */
             }
         }
-        if ((prev2 & (1 << MFRC522_INTERRUPT2_CRC)) != 0)                    /* crc */
+        if ((divirq_reg & (1 << MFRC522_INTERRUPT2_CRC)) != 0)               /* crc */
         {
             handle->irq_flag |= 1 << MFRC522_INTERRUPT_CRC;                  /* set the irq flag */
             if (handle->receive_callback != NULL)                            /* if receive callback */
@@ -853,7 +864,7 @@ uint8_t mfrc522_irq_handler(mfrc522_handle_t *handle)
                 handle->receive_callback(MFRC522_INTERRUPT_CRC);             /* run callback */
             }
         }
-        if ((prev2 & (1 << MFRC522_INTERRUPT2_MFIN_ACT)) != 0)               /* mfin act */
+        if ((divirq_reg & (1 << MFRC522_INTERRUPT2_MFIN_ACT)) != 0)          /* mfin act */
         {
             handle->irq_flag |= 1 << MFRC522_INTERRUPT_MFIN_ACT;             /* set the irq flag */
             if (handle->receive_callback != NULL)                            /* if receive callback */
